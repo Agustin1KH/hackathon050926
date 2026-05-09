@@ -2,10 +2,10 @@
 
 ## Concept
 A standalone social media agent that manages your X (Twitter) presence —
-drafting posts, scheduling them, and triaging mentions/DMs with AI-drafted
-replies. Approve from a **web dashboard** or by **replying Y/N to a text**.
-Posting uses **browser automation** (Playwright), not the X API, so there's
-no developer review, no token rotation, and no per-month tweet caps.
+drafting posts, scheduling them, triaging mentions, and **analyzing your
+follower audience** to tune content for who actually reads you. Approve from
+a **web dashboard** or by **replying Y/N to a text**. Posting uses the
+**X API v2** via `twitter-api-v2`.
 
 **Inspired by Ara's capability set** (persistent agent, phone access, browser
 automation, always-on) but built standalone — no Ara API dependency.
@@ -33,7 +33,7 @@ automation, always-on) but built standalone — no Ara API dependency.
                │ poll
                ▼
 ┌─────────────────────────────────────┐
-│ Worker (Node + Playwright)          │
+│ Worker (Node + X API (twitter-api-v2))          │
 │  • node-cron tick every minute      │
 │  • Approved scheduled → post via    │
 │    long-lived Chrome session        │
@@ -51,19 +51,20 @@ automation, always-on) but built standalone — no Ara API dependency.
 
 ---
 
-## Why browser automation instead of X API
+## Why X API (not browser automation)
 
-| Concern | X API | Playwright (this approach) |
-|---|---|---|
-| Dev approval | Required, can take days | None |
-| Free-tier post cap | 500/month | Unlimited (your account's normal limits) |
-| OAuth complexity | OAuth 2.0 PKCE flow | One-time login in headed Chrome, session persists |
-| DM access | Basic tier ($100/mo) | Free, just navigate to DM page |
-| Maintenance | Token refresh, rate limits | Selectors break occasionally; mitigate with stable test IDs |
+For posting, X API and Playwright are both viable, but **for follower
+analysis the X API is dramatically better**: scraping followers is fragile,
+slow, and rate-limit-prone. Since this product depends on understanding the
+user's audience, we standardize on the X API for everything.
 
-Tradeoffs accepted: Playwright is more fragile (X can change DOM), but for a
-hackathon the friction-free auth + unlimited posting wins. Selectors live in
-one file (`worker/x-selectors.ts`) so updates are localized.
+Free-tier limits we work within:
+- 500 posts / month (more than enough for hackathon + light real use)
+- ~75 reads/15min for mentions polling (fine at our 5-min cadence)
+- Followers endpoint paginates 100/page (we cap at 100 for hackathon)
+
+Tokens: 5 values from developer.x.com → app → Keys & Tokens. Stored in
+`.env.local`, never committed.
 
 ---
 
@@ -72,11 +73,11 @@ one file (`worker/x-selectors.ts`) so updates are localized.
 | Layer | Tool | Why |
 |---|---|---|
 | Dashboard | **Next.js 16** + AI SDK 6 + shadcn (existing scaffold) | Already wired |
-| AI | **Anthropic SDK** (`@anthropic-ai/sdk`), model `claude-sonnet-4-6` | Direct API; AI Gateway also OK |
-| State | **Supabase** (Postgres) | REST API + auth + free tier; provisioned |
-| Browser | **Playwright** (Node) | Drives real Chrome with persistent session |
-| Worker | **Node** + `node-cron` | Same runtime as Next.js, easy deploy |
-| SMS (optional) | **Twilio** | Inbound webhook → Supabase flag flip |
+| AI | **Anthropic SDK** (`@anthropic-ai/sdk`), model `claude-sonnet-4-6` | Drafting + bio classification |
+| State | **Supabase** (Postgres) | REST API, free tier, provisioned |
+| X integration | **`twitter-api-v2`** | Post, reply, mentions, **followers** |
+| Worker | **Node** + `node-cron` + `tsx` | Background loop, same TS as the app |
+| SMS (optional) | **Twilio** | Inbound webhook → flip approval flag |
 
 ---
 
@@ -98,14 +99,7 @@ ara-hackathon/
 │       └── twilio/route.ts    # SMS webhook → flip approval flag
 │
 ├── worker/                    # Long-lived Node process
-│   ├── index.ts               # cron loop, registers jobs
-│   ├── browser.ts             # Playwright session manager
-│   ├── x-selectors.ts         # X DOM selectors (single source)
-│   ├── jobs/
-│   │   ├── post-scheduled.ts  # fire approved scheduled posts
-│   │   ├── post-replies.ts    # fire approved replies
-│   │   └── poll-mentions.ts   # scrape /notifications/mentions
-│   └── login.ts               # one-time headed login flow
+│   └── index.ts               # cron loop: post / reply / poll mentions
 │
 ├── lib/
 │   ├── supabase.ts            # browser/server client
@@ -135,26 +129,28 @@ State machines:
 
 ---
 
-## Login flow (one-time, headed)
+## Setup checklist (do once)
 
-```bash
-npm run worker:login
-```
-Opens a real Chrome window. User logs into x.com normally. Playwright saves
-the auth state to `worker/.auth/x.json` (gitignored). All subsequent posting
-uses that saved session — no credentials in env vars.
+1. Run `db/schema.sql` in Supabase SQL Editor.
+2. Drop into `.env.local`:
+   - `ANTHROPIC_API_KEY`
+   - `SUPABASE_SERVICE_KEY` (service-role, secret)
+   - `X_API_KEY`, `X_API_SECRET`, `X_BEARER_TOKEN`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`
+3. `npm run dev` (dashboard on :3000)
+4. `npm run worker:dev` (in another terminal)
+5. Hit `POST /api/audience/refresh` to populate the audience table.
 
 ---
 
 ## Build Order (6 hours, 4 people)
 
-| Hour | P1 (Platform) | P2 (Browser/Posting) | P3 (AI/Drafting) | P4 (UI/Dashboard) |
-|------|---------------|----------------------|------------------|-------------------|
-| 1 | ✅ Schema, env, supabase clients, types | Playwright install + login flow | Anthropic SDK setup, draft prompt working | Gut placeholder, dashboard route |
-| 2 | Worker harness + cron registry | `post_tweet` via Playwright works end-to-end | `/api/draft` returns 3 variants | `/draft` page UI |
-| 3 | Twilio SMS skeleton | `get_mentions` scraping works | `/api/classify`, `/api/reply` | `/approve` page |
-| 4 | SMS round-trip | `reply_to` works | (polish prompts) | `/inbox` page |
-| 5 | (integration testing) | (polish, error handling) | (polish) | `/stats`, `/settings` |
+| Hour | P1 (Platform) | P2 (X integration) | P3 (AI/Drafting) | P4 (UI/Dashboard) |
+|------|---------------|--------------------|------------------|-------------------|
+| 1 | ✅ Schema (incl. audience), env, supabase clients, types | ✅ `lib/x-client.ts` (post, reply, mentions, followers) | ✅ Anthropic client + prompts | Gut placeholder, dashboard route |
+| 2 | ✅ Worker harness + cron | ✅ post-scheduled, fire-replies, poll-mentions in worker | ✅ `/api/draft`, `/api/reply` | `/draft` page UI |
+| 3 | Twilio SMS skeleton | (polish error handling) | ✅ `/api/audience/refresh` (follower segmentation) | `/approve` page |
+| 4 | SMS round-trip | (rate limit handling) | (audience-aware drafts) | `/inbox` page |
+| 5 | (integration testing) | (polish) | (polish) | `/stats`, `/audience`, `/settings` |
 | 6 | README, deploy, demo script | (polish) | (polish) | Landing polish |
 
 ---
@@ -169,9 +165,10 @@ without depending on Ara's API:
 |---|---|
 | Persistent sandbox | Worker process + Supabase persistent state |
 | Phone access | Twilio SMS approval flow |
-| Browser tools | Playwright with saved session |
+| Tool integrations | `lib/x-client.ts` + Anthropic + Supabase |
 | Always-on automation | Worker runs on a VM / Railway / Fly |
-| `@ara.tool` primitive | Discrete worker jobs (`post`, `reply`, `mentions`) |
+| `@ara.tool` primitive | Discrete worker jobs (`firePosts`, `fireReplies`, `pollMentions`) |
+| Audience awareness | Follower segmentation pipeline (X API → Anthropic) |
 
 Pitch framing: *"We took the capabilities Ara shows off in their docs and built
 a focused, self-contained version for one job: managing your X presence."*
@@ -184,9 +181,9 @@ a focused, self-contained version for one job: managing your X presence."*
 2. `/draft` → type *"thoughts on vibe coding"* → 3 variants stream in (Anthropic) → pick → schedule for +60s.
 3. Show row in Supabase live (queue table updates).
 4. Phone buzzes — SMS: *"Posting in 30s: '...'. Reply Y to confirm or N to cancel."*
-5. Reply Y. Worker picks up flag, Playwright drives Chrome, tweet appears live on X.
+5. Reply Y. Worker picks up flag, X API (twitter-api-v2) drives Chrome, tweet appears live on X.
 6. Open `/inbox`. New mention. AI-drafted reply already there. Edit one word, click ✓.
-7. Worker fires reply via Playwright. Live on X.
+7. Worker fires reply via X API (twitter-api-v2). Live on X.
 
 Two channels (web + SMS), end-to-end, in under 5 minutes.
 

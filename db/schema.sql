@@ -55,6 +55,20 @@ create table if not exists replies (
 
 create index if not exists replies_status_idx on replies(status, created_at desc);
 
+create table if not exists audience (
+  id           uuid primary key default gen_random_uuid(),
+  follower_id  text unique not null,
+  username     text,
+  name         text,
+  bio          text,
+  follower_cnt int,
+  segment      text,                 -- AI-classified: devs / founders / marketers / etc.
+  segment_conf real,                 -- 0..1 confidence
+  fetched_at   timestamptz default now()
+);
+
+create index if not exists audience_segment_idx on audience(segment);
+
 create table if not exists config (
   key   text primary key,
   value text
@@ -64,5 +78,7 @@ create table if not exists config (
 insert into config (key, value) values
   ('style_profile', 'casual, technical, no hashtags, concise'),
   ('post_schedule', '09:00,13:00,18:00'),
-  ('phone_number',  '')
+  ('phone_number',  ''),
+  ('x_user_id',     ''),
+  ('x_username',    '')
 on conflict (key) do nothing;

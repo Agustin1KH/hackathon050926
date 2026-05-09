@@ -58,3 +58,25 @@ export type ConfigRow = {
   key: string;
   value: string | null;
 };
+
+export type AudienceSegment =
+  | "developers"
+  | "founders"
+  | "marketers"
+  | "designers"
+  | "investors"
+  | "creators"
+  | "students"
+  | "other";
+
+export type AudienceRow = {
+  id: string;
+  follower_id: string;
+  username: string | null;
+  name: string | null;
+  bio: string | null;
+  follower_cnt: number | null;
+  segment: AudienceSegment | null;
+  segment_conf: number | null;
+  fetched_at: string;
+};
