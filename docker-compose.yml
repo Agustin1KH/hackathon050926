@@ -1,0 +1,4 @@
+# Stub for future use — MVP uses SQLite + local Chroma, no containers needed.
+# TODO(v2): Add Postgres + pgvector service here when we outgrow SQLite.
+version: "3.9"
+services: {}

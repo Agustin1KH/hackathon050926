@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>synthaudience</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .seg-color-0 { background-color: #fef3c7; border-color: #fbbf24; }
+    .seg-color-1 { background-color: #dbeafe; border-color: #60a5fa; }
+    .seg-color-2 { background-color: #dcfce7; border-color: #4ade80; }
+    .seg-color-3 { background-color: #fce7f3; border-color: #f472b6; }
+    .seg-color-4 { background-color: #ede9fe; border-color: #a78bfa; }
+    .seg-color-5 { background-color: #ffedd5; border-color: #fb923c; }
+    .seg-color-6 { background-color: #cffafe; border-color: #22d3ee; }
+    .seg-color-7 { background-color: #fee2e2; border-color: #f87171; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <div class="max-w-6xl mx-auto p-6 space-y-6">
+    <header class="space-y-1">
+      <h1 class="text-3xl font-semibold tracking-tight">synthaudience</h1>
+      <p class="text-sm text-slate-500">Describe your audience. Get a population of synthetic followers grounded in real subreddit culture.</p>
+    </header>
+
+    <!-- Step 1: describe -->
+    <section class="bg-white rounded-lg border border-slate-200 p-5 space-y-3">
+      <label class="block text-sm font-medium text-slate-700">
+        Describe your audience
+      </label>
+      <p class="text-xs text-slate-500">
+        From rough ("100 people, half American tennis players, half European soccer players") to detailed
+        (geo + demographic counts, sample follower handles, comment snippets from your videos). The more
+        signal you give, the higher fidelity the population.
+      </p>
+      <textarea
+        id="description"
+        rows="6"
+        class="w-full border border-slate-300 rounded-md p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        placeholder="My followers are mostly fitness creators in the US and Europe, split between powerlifting and bodybuilding. Most are men 22-40, English-speaking. Comments often mention RPE, hypertrophy, mind-muscle connection..."
+      ></textarea>
+      <div class="flex flex-wrap items-center gap-3">
+        <label class="text-sm text-slate-600 flex items-center gap-2">
+          Population size
+          <input id="total_agents" type="number" min="2" max="50" value="12"
+            class="w-20 border border-slate-300 rounded-md px-2 py-1 text-sm" />
+        </label>
+        <button id="btn-generate"
+          class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed">
+          Generate audience
+        </button>
+        <button id="btn-browse"
+          class="bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-medium px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hidden">
+          Browse Reddit now
+        </button>
+        <span id="status" class="text-sm text-slate-500"></span>
+      </div>
+    </section>
+
+    <!-- Step 2: audience summary -->
+    <section id="audience-summary" class="hidden bg-white rounded-lg border border-slate-200 p-5">
+      <div class="flex justify-between items-start gap-4">
+        <div class="space-y-1">
+          <h2 class="text-lg font-semibold">Audience: <span id="audience-name" class="font-mono text-blue-700"></span></h2>
+          <p id="segments-summary" class="text-sm text-slate-600"></p>
+        </div>
+        <span id="agent-count" class="text-sm text-slate-500"></span>
+      </div>
+    </section>
+
+    <!-- Step 3: agent grid -->
+    <section id="agent-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></section>
+
+    <!-- Step 4: video simulation -->
+    <section id="video-section" class="hidden bg-white rounded-lg border border-slate-200 p-5 space-y-3">
+      <div>
+        <h2 class="text-lg font-semibold">Run a simulation</h2>
+        <p class="text-xs text-slate-500">Upload a short video (under ~20 seconds works best). The audience above will react to it.</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <label class="block text-sm">
+          <span class="text-slate-700">Title / caption</span>
+          <input id="video-title" type="text" placeholder="5 cues that fixed my squat depth"
+            class="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+        </label>
+        <label class="block text-sm">
+          <span class="text-slate-700">Video file</span>
+          <input id="video-file" type="file" accept="video/*"
+            class="mt-1 w-full text-sm border border-slate-300 rounded-md px-3 py-2 file:mr-3 file:py-1 file:px-3 file:border-0 file:text-sm file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200" />
+        </label>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="btn-evaluate-video"
+          class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed">
+          Run simulation
+        </button>
+        <span id="video-status" class="text-sm text-slate-500"></span>
+      </div>
+    </section>
+
+    <!-- Step 5: report -->
+    <section id="report-section" class="hidden space-y-4">
+      <div class="bg-white rounded-lg border border-slate-200 p-5">
+        <h2 class="text-lg font-semibold mb-1">Report</h2>
+        <div id="report-description" class="text-sm text-slate-600 italic mb-4"></div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <div class="bg-slate-50 p-3 rounded">
+            <div class="text-xs text-slate-500 uppercase">Avg like</div>
+            <div id="m-like" class="text-2xl font-semibold"></div>
+            <div class="text-[11px] text-slate-400">out of 10</div>
+          </div>
+          <div class="bg-slate-50 p-3 rounded">
+            <div class="text-xs text-slate-500 uppercase">Engage prob.</div>
+            <div id="m-engage" class="text-2xl font-semibold"></div>
+          </div>
+          <div class="bg-slate-50 p-3 rounded">
+            <div class="text-xs text-slate-500 uppercase">Share prob.</div>
+            <div id="m-share" class="text-2xl font-semibold"></div>
+          </div>
+          <div class="bg-slate-50 p-3 rounded">
+            <div class="text-xs text-slate-500 uppercase">Sentiment</div>
+            <div id="m-sentiment" class="text-sm font-semibold flex items-center gap-2 mt-1"></div>
+          </div>
+        </div>
+
+        <h3 class="text-sm font-semibold text-slate-700 mb-2">Per-segment breakdown</h3>
+        <div id="report-by-segment" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+
+        <h3 class="text-sm font-semibold text-slate-700 mt-5 mb-2">Themes</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="bg-emerald-50 border border-emerald-200 rounded p-3">
+            <div class="text-xs uppercase text-emerald-700 mb-1">What landed</div>
+            <ul id="themes-positive" class="list-disc list-inside text-sm space-y-0.5"></ul>
+          </div>
+          <div class="bg-rose-50 border border-rose-200 rounded p-3">
+            <div class="text-xs uppercase text-rose-700 mb-1">What pushed back</div>
+            <ul id="themes-negative" class="list-disc list-inside text-sm space-y-0.5"></ul>
+          </div>
+        </div>
+
+        <h3 class="text-sm font-semibold text-slate-700 mt-5 mb-2">Representative comments</h3>
+        <ul id="report-quotes" class="space-y-1.5"></ul>
+      </div>
+    </section>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const STATUS = $("status");
+
+let SEG_TO_COLOR_IDX = {};
+
+function setStatus(msg, kind = "info") {
+  STATUS.textContent = msg || "";
+  STATUS.className = "text-sm " + (
+    kind === "error" ? "text-red-600" :
+    kind === "ok" ? "text-green-700" :
+    "text-slate-500"
+  );
+}
+
+function setBusy(busy) {
+  $("btn-generate").disabled = busy;
+  $("btn-browse").disabled = busy;
+}
+
+function colorClassFor(segmentId) {
+  if (!(segmentId in SEG_TO_COLOR_IDX)) {
+    SEG_TO_COLOR_IDX[segmentId] = Object.keys(SEG_TO_COLOR_IDX).length % 8;
+  }
+  return `seg-color-${SEG_TO_COLOR_IDX[segmentId]}`;
+}
+
+function renderAgentCard(agent) {
+  const color = colorClassFor(agent.segment_id);
+  const subs = (agent.interest_graph || []).map(s =>
+    `<span class="inline-block bg-white/70 px-2 py-0.5 rounded text-xs font-mono mr-1 mb-1">${s}</span>`
+  ).join("");
+  const tones = (agent.tone_examples || []).map(t =>
+    `<li class="italic text-sm text-slate-700">"${t}"</li>`
+  ).join("");
+
+  return `
+    <details class="border-2 ${color} rounded-lg p-4 transition hover:shadow-md group">
+      <summary class="cursor-pointer list-none flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div class="font-semibold truncate">${agent.display_name}</div>
+          <div class="text-xs text-slate-600">${agent.age} · ${agent.country} · ${agent.occupation}</div>
+          <div class="text-[11px] mt-1 font-mono text-slate-500">${agent.segment_id}</div>
+        </div>
+        <span class="text-slate-500 text-xs group-open:hidden">&#x25BC;</span>
+        <span class="text-slate-500 text-xs hidden group-open:inline">&#x25B2;</span>
+      </summary>
+      <div class="mt-3 space-y-3 text-sm">
+        <p class="text-slate-700">${agent.bio}</p>
+        <div>
+          <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Subreddits they read</div>
+          <div>${subs || '<span class="text-xs text-slate-400">(none)</span>'}</div>
+        </div>
+        <div>
+          <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">How they talk</div>
+          <ul class="list-disc list-inside space-y-0.5">${tones}</ul>
+        </div>
+        <div class="text-xs text-slate-400">
+          posting ratio ${agent.posting_ratio.toFixed(2)} · id ${agent.id.slice(0, 8)}
+        </div>
+      </div>
+    </details>
+  `;
+}
+
+function renderAgents(agents) {
+  // group by segment so cards of the same kind cluster together visually
+  const sorted = [...agents].sort((a, b) => a.segment_id.localeCompare(b.segment_id));
+  $("agent-grid").innerHTML = sorted.map(renderAgentCard).join("");
+}
+
+function renderSummary(spec, count) {
+  $("audience-summary").classList.remove("hidden");
+  $("audience-name").textContent = spec.name;
+  $("agent-count").textContent = `${count} agents`;
+  const parts = (spec.segments || []).map(s =>
+    `<span class="font-mono">${s.id}</span> (${Math.round(s.weight * 100)}%)`
+  );
+  $("segments-summary").innerHTML = "Segments: " + parts.join(" · ");
+  $("btn-browse").classList.remove("hidden");
+}
+
+async function fetchJSON(url, opts = {}) {
+  const resp = await fetch(url, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${resp.status}: ${text}`);
+  }
+  return resp.json();
+}
+
+async function generate() {
+  const description = $("description").value.trim();
+  const total = parseInt($("total_agents").value, 10) || 12;
+  if (!description) {
+    setStatus("Write a description first.", "error");
+    return;
+  }
+
+  setBusy(true);
+  SEG_TO_COLOR_IDX = {};
+  $("agent-grid").innerHTML = "";
+
+  try {
+    setStatus("Parsing your description into an audience spec...");
+    const fromText = await fetchJSON("/audience/from-text", {
+      method: "POST",
+      body: JSON.stringify({ description, total_agents: total }),
+    });
+
+    renderSummary(fromText.spec, total);
+    setStatus(`Spec ready (${fromText.spec.segments.length} segments). Generating ${total} personas...`);
+
+    const generated = await fetchJSON("/personas/generate", {
+      method: "POST",
+      body: JSON.stringify({ audience_id: fromText.audience_id }),
+    });
+
+    renderAgents(generated.personas);
+    $("video-section").classList.remove("hidden");
+    setStatus(`Generated ${generated.count} agents.`, "ok");
+  } catch (e) {
+    setStatus(e.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function browse() {
+  setBusy(true);
+  try {
+    setStatus("Fetching Reddit posts and writing memories...");
+    const r = await fetchJSON("/browse/run-once", { method: "POST" });
+    setStatus(`Browsed ${r.agents_browsed} agents, wrote ${r.memories_added} memories.`, "ok");
+  } catch (e) {
+    setStatus(e.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function loadExistingPersonas() {
+  try {
+    const personas = await fetchJSON("/personas");
+    if (personas.length > 0) {
+      renderAgents(personas);
+      $("btn-browse").classList.remove("hidden");
+      $("video-section").classList.remove("hidden");
+      setStatus(`Loaded ${personas.length} existing agents from previous run.`);
+    }
+  } catch {
+    // ignore - no personas yet
+  }
+}
+
+// ---------- Video evaluation ----------
+
+const VIDEO_STATUS = $("video-status");
+function setVideoStatus(msg, kind = "info") {
+  VIDEO_STATUS.textContent = msg || "";
+  VIDEO_STATUS.className = "text-sm " + (
+    kind === "error" ? "text-red-600" :
+    kind === "ok" ? "text-green-700" :
+    "text-slate-500"
+  );
+}
+
+function fmtPct(p) { return Math.round((p || 0) * 100) + "%"; }
+function fmtScore(s) { return (s || 0).toFixed(2); }
+
+function renderSentimentBar(dist) {
+  const segments = [
+    ["positive", "bg-emerald-500"],
+    ["neutral",  "bg-slate-400"],
+    ["negative", "bg-rose-500"],
+  ];
+  const inner = segments.map(([k, color]) => {
+    const pct = (dist[k] || 0) * 100;
+    return `<span class="inline-block ${color} text-white text-[10px] text-center" style="width:${pct}%">${pct >= 12 ? Math.round(pct)+"%" : ""}</span>`;
+  }).join("");
+  return `<div class="flex h-4 w-full rounded overflow-hidden border border-slate-200">${inner}</div>`;
+}
+
+function renderReport(payload) {
+  const r = payload.report;
+  $("report-section").classList.remove("hidden");
+  $("report-description").textContent = `Video described as: "${payload.description.replace(/\s+/g," ").slice(0,300)}${payload.description.length > 300 ? "…" : ""}"`;
+
+  $("m-like").textContent   = fmtScore(r.overall.like_score);
+  $("m-engage").textContent = fmtPct(r.overall.engage_probability);
+  $("m-share").textContent  = fmtPct(r.overall.share_probability);
+  $("m-sentiment").innerHTML = renderSentimentBar(r.overall.sentiment_dist || {});
+
+  // per segment
+  $("report-by-segment").innerHTML = Object.entries(r.by_segment).map(([seg, m]) => `
+    <div class="border border-slate-200 rounded p-3">
+      <div class="font-mono text-xs text-slate-500 mb-1">${seg} (${m.n} agents)</div>
+      <div class="flex gap-4 text-sm">
+        <div><span class="text-slate-500">like</span> <strong>${fmtScore(m.like_score)}</strong></div>
+        <div><span class="text-slate-500">engage</span> <strong>${fmtPct(m.engage_probability)}</strong></div>
+        <div><span class="text-slate-500">share</span> <strong>${fmtPct(m.share_probability)}</strong></div>
+      </div>
+      <div class="mt-2">${renderSentimentBar(m.sentiment_dist || {})}</div>
+    </div>
+  `).join("");
+
+  // themes
+  $("themes-positive").innerHTML = (r.top_themes_positive || []).map(t => `<li>${t}</li>`).join("")
+    || `<li class="text-slate-400 italic">none</li>`;
+  $("themes-negative").innerHTML = (r.top_themes_negative || []).map(t => `<li>${t}</li>`).join("")
+    || `<li class="text-slate-400 italic">none</li>`;
+
+  // representative quotes
+  $("report-quotes").innerHTML = (r.representative_comments || []).map(c => `
+    <li class="text-sm">
+      <span class="font-mono text-xs text-slate-500 mr-2">[${c.segment_id}]</span>
+      <span class="italic text-slate-700">"${c.comment}"</span>
+    </li>
+  `).join("");
+
+  $("report-section").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function evaluateVideo() {
+  const file = $("video-file").files[0];
+  const title = $("video-title").value.trim();
+  if (!file) { setVideoStatus("Pick a video file first.", "error"); return; }
+  if (!title) { setVideoStatus("Add a title or caption.", "error"); return; }
+
+  $("btn-evaluate-video").disabled = true;
+  setVideoStatus("Uploading and describing video frames... (this can take 20-60 seconds)");
+
+  const fd = new FormData();
+  fd.append("title", title);
+  fd.append("video", file);
+
+  try {
+    const resp = await fetch("/evaluate/video", { method: "POST", body: fd });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`${resp.status}: ${text}`);
+    }
+    const payload = await resp.json();
+    renderReport(payload);
+    setVideoStatus(`Done. Run id ${payload.run_id.slice(0,8)}.`, "ok");
+  } catch (e) {
+    setVideoStatus(e.message, "error");
+  } finally {
+    $("btn-evaluate-video").disabled = false;
+  }
+}
+
+$("btn-generate").addEventListener("click", generate);
+$("btn-browse").addEventListener("click", browse);
+$("btn-evaluate-video").addEventListener("click", evaluateVideo);
+
+loadExistingPersonas();
+</script>
+</body>
+</html>

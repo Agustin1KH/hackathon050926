@@ -1,0 +1,94 @@
+{
+  "name": "fitness-influencer-audience",
+  "total_agents": 12,
+  "segments": [
+    {
+      "id": "us_powerlifter",
+      "weight": 0.25,
+      "demographics": {
+        "country": "US",
+        "age_range": [20, 40],
+        "gender_dist": {"male": 0.7, "female": 0.3},
+        "language": "en"
+      },
+      "psychographics": {
+        "values": ["strength", "discipline", "progressive overload"],
+        "motivations": ["hit PR numbers", "compete in meets", "optimize programming"]
+      },
+      "interests": ["r/powerlifting", "r/weightroom"],
+      "vocabulary_examples": [
+        "Just hit a 500lb pull at 181, finally made it to the 3x bodyweight club",
+        "RPE 8 on squats today, moved like butter, deload is paying off",
+        "Anyone else running Sheiko? Week 3 volume is brutal but I trust the process",
+        "Form check on my bench - am I flaring too early?",
+        "Meet prep starts in 8 weeks, time to peak this squat"
+      ]
+    },
+    {
+      "id": "us_bodybuilder",
+      "weight": 0.25,
+      "demographics": {
+        "country": "US",
+        "age_range": [18, 35],
+        "gender_dist": {"male": 0.6, "female": 0.4},
+        "language": "en"
+      },
+      "psychographics": {
+        "values": ["aesthetics", "symmetry", "dedication"],
+        "motivations": ["build a balanced physique", "stage-ready conditioning", "dial in nutrition"]
+      },
+      "interests": ["r/bodybuilding", "r/naturalbodybuilding"],
+      "vocabulary_examples": [
+        "Finally seeing separation in my side delts, lateral raises every day gang",
+        "12 weeks out, sitting at 195 and conditioning is coming in nicely",
+        "Mind-muscle connection on cable flyes is unreal compared to dumbbell",
+        "Bulk is going well but my midsection is getting thick, time to reassess",
+        "Posing practice is just as important as training, change my mind"
+      ]
+    },
+    {
+      "id": "eu_powerlifter",
+      "weight": 0.25,
+      "demographics": {
+        "country": "EU",
+        "age_range": [22, 38],
+        "gender_dist": {"male": 0.65, "female": 0.35},
+        "language": "en"
+      },
+      "psychographics": {
+        "values": ["technique", "longevity", "community"],
+        "motivations": ["compete at national level", "stay injury-free", "share knowledge"]
+      },
+      "interests": ["r/powerlifting", "r/weightroom", "r/strength_training"],
+      "vocabulary_examples": [
+        "Switched to high bar for off-season and my quads are growing like mad",
+        "IPF Worlds was incredible this year, the 66kg class was stacked",
+        "Been running conjugate with a Scandinavian twist, loving the variation",
+        "Mobility work before squats is non-negotiable for me at this point",
+        "Training in a cold garage gym hits different, proper old school vibes"
+      ]
+    },
+    {
+      "id": "eu_bodybuilder",
+      "weight": 0.25,
+      "demographics": {
+        "country": "EU",
+        "age_range": [20, 36],
+        "gender_dist": {"male": 0.6, "female": 0.4},
+        "language": "en"
+      },
+      "psychographics": {
+        "values": ["classic aesthetics", "health-first approach", "natural lifting"],
+        "motivations": ["compete in natural federations", "build a timeless physique", "inspire others"]
+      },
+      "interests": ["r/naturalbodybuilding", "r/bodybuilding"],
+      "vocabulary_examples": [
+        "Classic physique is where it's at, enough with the mass monster era",
+        "Tracking macros to the gram during prep, no room for error at 8 weeks out",
+        "European natural feds are growing fast, love to see the sport evolving",
+        "Volume on back day is insane but the V-taper doesn't build itself",
+        "Rest days are growth days, finally learned to respect recovery"
+      ]
+    }
+  ]
+}
