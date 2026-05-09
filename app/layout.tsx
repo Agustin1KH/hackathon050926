@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Nav } from "@/components/nav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,18 +15,12 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "hackathon050926 — launchpad",
-    template: "%s · hackathon050926",
+    default: "Atlas — your X social agent",
+    template: "%s · Atlas",
   },
   description:
-    "An opinionated Next.js + AI SDK starter, ready to pivot into whatever you're building this weekend.",
+    "An AI agent that drafts, schedules, and replies on X — tuned to who actually follows you.",
   metadataBase: new URL("http://localhost:3000"),
-  openGraph: {
-    title: "hackathon050926 — launchpad",
-    description:
-      "An opinionated Next.js + AI SDK starter, ready to pivot into whatever you're building this weekend.",
-    type: "website",
-  },
 };
 
 export const viewport: Viewport = {
@@ -47,7 +42,10 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
-        {children}
+        <Nav />
+        <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-8">
+          {children}
+        </main>
       </body>
     </html>
   );
