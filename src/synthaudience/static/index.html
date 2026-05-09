@@ -3,148 +3,751 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>synthaudience</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>PRDX — predict before you post.</title>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Georgia&display=swap" rel="stylesheet" />
+
   <style>
-    .seg-color-0 { background-color: #fef3c7; border-color: #fbbf24; }
-    .seg-color-1 { background-color: #dbeafe; border-color: #60a5fa; }
-    .seg-color-2 { background-color: #dcfce7; border-color: #4ade80; }
-    .seg-color-3 { background-color: #fce7f3; border-color: #f472b6; }
-    .seg-color-4 { background-color: #ede9fe; border-color: #a78bfa; }
-    .seg-color-5 { background-color: #ffedd5; border-color: #fb923c; }
-    .seg-color-6 { background-color: #cffafe; border-color: #22d3ee; }
-    .seg-color-7 { background-color: #fee2e2; border-color: #f87171; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0A0E1A;
+      --bg-2:     #0D1220;
+      --surface:  #141C30;
+      --card:     #27314A;
+      --card-2:   #1E2840;
+      --border:   #27314A;
+      --border-2: #3E5F90;
+
+      --text-1:   #F5F5F7;
+      --text-2:   #9AA4BA;
+      --text-3:   #5A6478;
+
+      --lime:     #C8F36C;
+      --blue:     #60A5FA;
+      --pink:     #F472B6;
+      --amber:    #FBBF24;
+      --olive:    #78925B;
+      --lime-dim: #6F8859;
+
+      /* segment accent map — uses deck palette */
+      --acc-0: #C8F36C;
+      --acc-1: #60A5FA;
+      --acc-2: #F472B6;
+      --acc-3: #FBBF24;
+      --acc-4: #78925B;
+      --acc-5: #3E5F90;
+      --acc-6: #9AA4BA;
+      --acc-7: #F5F5F7;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text-1);
+      font-family: 'Calibri', 'Trebuchet MS', system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Wave canvas ── */
+    #wave-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    #wave-fade {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(to bottom,
+        transparent 0%,
+        rgba(10,14,26,0.5) 50%,
+        #0A0E1A 80%
+      );
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* ── App shell ── */
+    #app { position: relative; z-index: 2; }
+
+    /* ── Nav ── */
+    #nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.1rem 2rem;
+      background: linear-gradient(to bottom, rgba(10,14,26,0.92) 0%, transparent 100%);
+      backdrop-filter: blur(2px);
+    }
+    .nav-brand {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 0.72rem;
+      font-weight: bold;
+      letter-spacing: 0.06em;
+      color: var(--lime);
+    }
+    .nav-brand span { color: var(--text-3); font-weight: normal; }
+    .nav-tag {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-3);
+    }
+
+    /* ── Hero ── */
+    #hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      justify-content: center;
+      padding: 0 2rem;
+    }
+    .hero-inner {
+      max-width: 640px;
+      margin: 0 auto;
+      width: 100%;
+      padding-top: 5rem;
+    }
+    .hero-eyebrow {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--lime);
+      margin-bottom: 1.25rem;
+      display: flex; align-items: center; gap: 0.75rem;
+    }
+    .hero-eyebrow::before {
+      content: '';
+      display: inline-block;
+      width: 24px; height: 2px;
+      background: var(--lime);
+      flex-shrink: 0;
+    }
+    h1.hero-title {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      font-weight: normal;
+      font-size: clamp(2.4rem, 5.5vw, 3.75rem);
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+      color: var(--text-1);
+      margin-bottom: 0.6rem;
+    }
+    h1.hero-title em {
+      font-style: normal;
+      color: var(--text-3);
+    }
+    .hero-sub {
+      font-size: 0.88rem;
+      color: var(--text-2);
+      line-height: 1.65;
+      max-width: 480px;
+      margin-bottom: 2.5rem;
+    }
+
+    /* ── Section labels ── */
+    .section-label {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 1.5rem;
+      display: flex; align-items: center; gap: 0.6rem;
+    }
+    .section-label .num { color: var(--lime); }
+    .section-label::after {
+      content: '';
+      flex: 1; height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Form elements ── */
+    textarea, input[type="text"], input[type="number"], input[type="file"] {
+      background: var(--card);
+      border: 1px solid var(--border-2);
+      color: var(--text-1);
+      border-radius: 4px;
+      font-family: 'Calibri', system-ui, sans-serif;
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    textarea:focus, input[type="text"]:focus, input[type="number"]:focus {
+      border-color: var(--lime);
+      box-shadow: 0 0 0 2px rgba(200,243,108,0.08);
+    }
+    textarea::placeholder, input::placeholder { color: var(--text-3); }
+
+    textarea {
+      width: 100%; padding: 0.8rem 1rem;
+      resize: vertical; line-height: 1.6;
+    }
+    input[type="number"] { padding: 0.45rem 0.65rem; width: 72px; }
+    input[type="text"]   { width: 100%; padding: 0.5rem 0.75rem; }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      background: var(--lime);
+      color: #0A0E1A;
+      border: none; border-radius: 4px;
+      padding: 0.55rem 1.4rem;
+      font-family: 'Consolas', monospace;
+      font-size: 0.7rem; font-weight: bold;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-primary:hover { background: #d6f87a; }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text-2);
+      border: 1px solid var(--border-2);
+      border-radius: 4px;
+      padding: 0.55rem 1.4rem;
+      font-family: 'Consolas', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-secondary:hover { border-color: var(--blue); color: var(--text-1); }
+    .btn-secondary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .btn-sim {
+      background: transparent;
+      color: var(--lime);
+      border: 1px solid rgba(200,243,108,0.35);
+      border-radius: 4px;
+      padding: 0.55rem 1.4rem;
+      font-family: 'Consolas', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .btn-sim:hover { border-color: var(--lime); background: rgba(200,243,108,0.06); }
+    .btn-sim:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Status ── */
+    .status-text {
+      font-family: 'Consolas', monospace;
+      font-size: 0.68rem;
+      color: var(--text-3);
+    }
+    .status-text.ok    { color: var(--lime); }
+    .status-text.error { color: #F87171; }
+
+    /* ── Controls row ── */
+    .controls-row {
+      display: flex; flex-wrap: wrap;
+      align-items: center; gap: 0.75rem;
+      margin-top: 0.875rem;
+    }
+    .pop-label {
+      font-family: 'Consolas', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      color: var(--text-3);
+      display: flex; align-items: center; gap: 0.45rem;
+    }
+
+    /* ── Scroll indicator ── */
+    #scroll-cue {
+      position: absolute; bottom: 2rem; left: 50%;
+      transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 0.35rem;
+    }
+    .scroll-mono {
+      font-family: 'Consolas', monospace;
+      font-size: 0.58rem; letter-spacing: 0.28em; text-transform: uppercase;
+      color: var(--text-3);
+    }
+    .scroll-tick {
+      width: 1px; height: 28px;
+      background: linear-gradient(to bottom, var(--text-3), transparent);
+    }
+
+    /* ── Content sections ── */
+    .content-section {
+      border-top: 1px solid var(--border);
+      padding: 3.5rem 2rem;
+    }
+    .content-section .inner { max-width: 960px; margin: 0 auto; }
+
+    .section-title {
+      font-family: 'Georgia', serif;
+      font-weight: normal;
+      font-size: clamp(1.3rem, 2.8vw, 1.9rem);
+      letter-spacing: -0.015em;
+      color: var(--text-1);
+      margin-bottom: 0.3rem;
+    }
+    .section-title em { font-style: normal; color: var(--text-3); }
+    .section-desc {
+      font-size: 0.82rem;
+      color: var(--text-3);
+      max-width: 460px;
+      line-height: 1.55;
+      margin-bottom: 1.75rem;
+    }
+
+    /* ── Audience summary ── */
+    #audience-summary.hidden-section { display: none; }
+    .aud-name {
+      font-family: 'Georgia', serif;
+      font-size: 1.3rem;
+      color: var(--text-1);
+      margin-bottom: 0.5rem;
+    }
+    .seg-pill {
+      display: inline-block;
+      font-family: 'Consolas', monospace;
+      font-size: 0.62rem; letter-spacing: 0.06em;
+      border: 1px solid var(--border-2);
+      border-radius: 2px;
+      padding: 0.15rem 0.45rem;
+      margin-right: 0.3rem; margin-bottom: 0.3rem;
+      color: var(--text-3);
+    }
+    .aud-count {
+      font-family: 'Consolas', monospace;
+      font-size: 0.62rem; letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--lime);
+    }
+
+    /* ── Agent grid ── */
+    #agent-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1px;
+      background: var(--border);
+    }
+
+    details.agent-card {
+      background: var(--bg-2);
+      border-left: 2px solid transparent;
+      padding: 1.1rem 1.1rem 1.1rem 1.25rem;
+      transition: background 0.12s;
+      cursor: pointer;
+    }
+    details.agent-card:hover { background: var(--surface); }
+    details.agent-card summary { list-style: none; }
+    details.agent-card summary::-webkit-details-marker { display: none; }
+
+    .ac-0 { border-left-color: var(--acc-0); }
+    .ac-1 { border-left-color: var(--acc-1); }
+    .ac-2 { border-left-color: var(--acc-2); }
+    .ac-3 { border-left-color: var(--acc-3); }
+    .ac-4 { border-left-color: var(--acc-4); }
+    .ac-5 { border-left-color: var(--acc-5); }
+    .ac-6 { border-left-color: var(--acc-6); }
+    .ac-7 { border-left-color: var(--acc-7); }
+
+    .card-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+    .card-name { font-size: 0.875rem; font-weight: normal; color: var(--text-1); }
+    .card-meta { font-family: 'Consolas', monospace; font-size: 0.62rem; color: var(--text-3); margin-top: 0.18rem; }
+    .card-seg  { font-family: 'Consolas', monospace; font-size: 0.58rem; color: var(--lime-dim); margin-top: 0.25rem; opacity: 0.8; }
+    .card-chevron { font-size: 0.55rem; color: var(--text-3); flex-shrink: 0; margin-top: 0.15rem; }
+
+    .card-body { margin-top: 0.9rem; }
+    .card-bio { font-size: 0.78rem; color: var(--text-2); line-height: 1.55; margin-bottom: 0.6rem; }
+    .card-section-label {
+      font-family: 'Consolas', monospace;
+      font-size: 0.58rem; letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--text-3); margin: 0.5rem 0 0.25rem;
+    }
+    .sub-tag {
+      display: inline-block;
+      font-family: 'Consolas', monospace; font-size: 0.6rem;
+      background: var(--card); border: 1px solid var(--border-2);
+      border-radius: 2px; padding: 0.1rem 0.35rem;
+      margin-right: 0.2rem; margin-bottom: 0.2rem;
+      color: var(--text-2);
+    }
+    .tone-line { font-size: 0.75rem; font-style: italic; color: var(--text-3); padding: 0.15rem 0; }
+    .card-footer {
+      font-family: 'Consolas', monospace; font-size: 0.58rem;
+      color: var(--text-3); opacity: 0.45; margin-top: 0.6rem;
+    }
+
+    /* ── Form label ── */
+    .f-label {
+      display: block;
+      font-family: 'Consolas', monospace;
+      font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--text-3); margin-bottom: 0.35rem;
+    }
+
+    /* ── File input ── */
+    input[type="file"] { padding: 0.45rem 0.65rem; color: var(--text-2); cursor: pointer; width: 100%; }
+    input[type="file"]::-webkit-file-upload-button {
+      background: var(--card); border: 1px solid var(--border-2); border-radius: 3px;
+      color: var(--text-2); font-family: 'Consolas', monospace; font-size: 0.62rem;
+      padding: 0.25rem 0.65rem; margin-right: 0.65rem; cursor: pointer;
+    }
+
+    /* ── Report ── */
+    .metric-block {
+      background: var(--card);
+      border: 1px solid var(--border-2);
+      border-radius: 4px;
+      padding: 1.25rem 1.5rem;
+    }
+    .metric-key {
+      font-family: 'Consolas', monospace;
+      font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--text-3); margin-bottom: 0.45rem;
+    }
+    .metric-val {
+      font-family: 'Georgia', serif;
+      font-size: 2.75rem; font-weight: normal;
+      line-height: 1; letter-spacing: -0.03em;
+      color: var(--lime);
+    }
+    .metric-unit { font-size: 1.1rem; color: var(--text-3); }
+    .metric-sub {
+      font-family: 'Consolas', monospace;
+      font-size: 0.6rem; color: var(--text-3); margin-top: 0.3rem;
+    }
+
+    .sent-bar {
+      height: 5px; border-radius: 2px; overflow: hidden;
+      background: var(--card); display: flex; margin-top: 0.5rem;
+    }
+    .sent-bar .sp { background: var(--lime); }
+    .sent-bar .sn { background: var(--text-3); }
+    .sent-bar .se { background: #F87171; }
+    .sent-legend {
+      display: flex; gap: 0.75rem; margin-top: 0.4rem;
+      font-family: 'Consolas', monospace; font-size: 0.58rem; color: var(--text-3);
+    }
+    .sent-legend .l-p { color: var(--lime); }
+    .sent-legend .l-e { color: #F87171; }
+
+    .seg-report-card {
+      background: var(--card);
+      border: 1px solid var(--border-2);
+      border-radius: 4px;
+      padding: 0.9rem 1.1rem;
+    }
+    .seg-rep-label {
+      font-family: 'Consolas', monospace; font-size: 0.62rem;
+      color: var(--text-3); margin-bottom: 0.5rem;
+    }
+    .seg-stats { display: flex; gap: 1.1rem; flex-wrap: wrap; }
+    .seg-stat { font-size: 0.78rem; color: var(--text-2); }
+    .seg-stat strong { color: var(--text-1); font-weight: normal; }
+
+    .theme-card {
+      border-radius: 4px; padding: 1rem 1.1rem;
+    }
+    .theme-pos {
+      background: rgba(200,243,108,0.05);
+      border: 1px solid rgba(200,243,108,0.18);
+    }
+    .theme-neg {
+      background: rgba(248,113,113,0.05);
+      border: 1px solid rgba(248,113,113,0.18);
+    }
+    .theme-label {
+      font-family: 'Consolas', monospace; font-size: 0.6rem;
+      letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 0.55rem;
+    }
+    .theme-pos .theme-label { color: var(--lime); }
+    .theme-neg .theme-label { color: #F87171; }
+    .theme-row {
+      font-size: 0.78rem; color: var(--text-2);
+      padding: 0.2rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .theme-row:last-child { border: none; }
+
+    .quote-row {
+      padding: 0.55rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem; color: var(--text-2); line-height: 1.5;
+    }
+    .quote-row:last-child { border: none; }
+    .quote-seg {
+      font-family: 'Consolas', monospace; font-size: 0.6rem;
+      color: var(--text-3); margin-right: 0.45rem;
+    }
+
+    .report-desc-block {
+      border-left: 2px solid var(--lime);
+      padding: 0.6rem 1rem;
+      font-size: 0.78rem; font-style: italic;
+      color: var(--text-3); line-height: 1.55;
+      margin-bottom: 2rem;
+    }
+
+    /* ── Footer ── */
+    #footer {
+      border-top: 1px solid var(--border);
+      padding: 1.5rem 2rem;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .footer-brand {
+      font-family: 'Consolas', monospace; font-size: 0.7rem;
+      font-weight: bold; color: var(--lime); letter-spacing: 0.06em;
+    }
+    .footer-brand span { color: var(--text-3); font-weight: normal; }
+    .footer-tag {
+      font-family: 'Consolas', monospace; font-size: 0.62rem;
+      letter-spacing: 0.14em; text-transform: lowercase;
+      color: var(--text-3);
+    }
+
+    /* ── Scroll fade-in ── */
+    .reveal { opacity: 0; transform: translateY(12px); transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1); }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    /* ── Hidden ── */
+    .hidden-section { display: none; }
+
+    /* ── Grid helpers ── */
+    .two-col { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: 1rem; }
+    .four-col { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 0.875rem; margin-bottom: 2.25rem; }
+
+    @media (max-width: 540px) {
+      #nav { padding: 1rem; }
+      .content-section { padding: 2.5rem 1rem; }
+      h1.hero-title { font-size: 2rem; }
+      #hero { padding: 0 1rem; }
+    }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen">
-  <div class="max-w-6xl mx-auto p-6 space-y-6">
-    <header class="space-y-1">
-      <h1 class="text-3xl font-semibold tracking-tight">synthaudience</h1>
-      <p class="text-sm text-slate-500">Describe your audience. Get a population of synthetic followers grounded in real subreddit culture.</p>
-    </header>
 
-    <!-- Step 1: describe -->
-    <section class="bg-white rounded-lg border border-slate-200 p-5 space-y-3">
-      <label class="block text-sm font-medium text-slate-700">
-        Describe your audience
-      </label>
-      <p class="text-xs text-slate-500">
-        From rough ("100 people, half American tennis players, half European soccer players") to detailed
-        (geo + demographic counts, sample follower handles, comment snippets from your videos). The more
-        signal you give, the higher fidelity the population.
-      </p>
-      <textarea
-        id="description"
-        rows="6"
-        class="w-full border border-slate-300 rounded-md p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        placeholder="My followers are mostly fitness creators in the US and Europe, split between powerlifting and bodybuilding. Most are men 22-40, English-speaking. Comments often mention RPE, hypertrophy, mind-muscle connection..."
-      ></textarea>
-      <div class="flex flex-wrap items-center gap-3">
-        <label class="text-sm text-slate-600 flex items-center gap-2">
-          Population size
-          <input id="total_agents" type="number" min="2" max="50" value="12"
-            class="w-20 border border-slate-300 rounded-md px-2 py-1 text-sm" />
-        </label>
-        <button id="btn-generate"
-          class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed">
-          Generate audience
-        </button>
-        <button id="btn-browse"
-          class="bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-medium px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hidden">
-          Browse Reddit now
-        </button>
-        <span id="status" class="text-sm text-slate-500"></span>
-      </div>
-    </section>
+<body>
+  <div id="wave-canvas"></div>
+  <div id="wave-fade"></div>
 
-    <!-- Step 2: audience summary -->
-    <section id="audience-summary" class="hidden bg-white rounded-lg border border-slate-200 p-5">
-      <div class="flex justify-between items-start gap-4">
-        <div class="space-y-1">
-          <h2 class="text-lg font-semibold">Audience: <span id="audience-name" class="font-mono text-blue-700"></span></h2>
-          <p id="segments-summary" class="text-sm text-slate-600"></p>
+  <!-- Nav -->
+  <nav id="nav">
+    <span class="nav-brand">PRDX<span>  //  HACKATHON BUILD</span></span>
+    <span class="nav-tag">01 / 07</span>
+  </nav>
+
+  <div id="app">
+
+    <!-- ════════════════ HERO ════════════════ -->
+    <section id="hero">
+      <div class="hero-inner">
+        <p class="hero-eyebrow">synthaudience</p>
+
+        <h1 class="hero-title">
+          Predict<br>before you<br><em>post.</em>
+        </h1>
+        <p class="hero-sub">
+          Describe your audience. Get a population of synthetic viewers grounded in real
+          behavioral data — then run your content through them before it ever goes live.
+        </p>
+
+        <div style="margin-bottom:1rem;">
+          <label class="f-label" for="description">Audience description</label>
+          <textarea
+            id="description"
+            rows="5"
+            placeholder="My followers are mostly fitness creators in the US and Europe, split between powerlifting and bodybuilding. Most are men 22–40, English-speaking. Comments often mention RPE, hypertrophy, mind-muscle connection..."
+          ></textarea>
         </div>
-        <span id="agent-count" class="text-sm text-slate-500"></span>
+
+        <div class="controls-row">
+          <label class="pop-label">
+            Population
+            <input id="total_agents" type="number" min="2" max="50" value="12" />
+          </label>
+          <button id="btn-generate" class="btn-primary">Generate audience</button>
+          <button id="btn-browse" class="btn-secondary" style="display:none;">Browse Reddit</button>
+          <span id="status" class="status-text"></span>
+        </div>
+      </div>
+
+      <div id="scroll-cue">
+        <span class="scroll-mono">scroll</span>
+        <div class="scroll-tick"></div>
       </div>
     </section>
 
-    <!-- Step 3: agent grid -->
-    <section id="agent-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></section>
-
-    <!-- Step 4: video simulation -->
-    <section id="video-section" class="hidden bg-white rounded-lg border border-slate-200 p-5 space-y-3">
-      <div>
-        <h2 class="text-lg font-semibold">Run a simulation</h2>
-        <p class="text-xs text-slate-500">Upload a short video (under ~20 seconds works best). The audience above will react to it.</p>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <label class="block text-sm">
-          <span class="text-slate-700">Title / caption</span>
-          <input id="video-title" type="text" placeholder="5 cues that fixed my squat depth"
-            class="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-        </label>
-        <label class="block text-sm">
-          <span class="text-slate-700">Video file</span>
-          <input id="video-file" type="file" accept="video/*"
-            class="mt-1 w-full text-sm border border-slate-300 rounded-md px-3 py-2 file:mr-3 file:py-1 file:px-3 file:border-0 file:text-sm file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200" />
-        </label>
-      </div>
-      <div class="flex items-center gap-3">
-        <button id="btn-evaluate-video"
-          class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed">
-          Run simulation
-        </button>
-        <span id="video-status" class="text-sm text-slate-500"></span>
+    <!-- ════════════════ AUDIENCE SUMMARY ════════════════ -->
+    <section id="audience-summary" class="content-section hidden-section">
+      <div class="inner reveal">
+        <div class="section-label"><span class="num">02 ·</span> POPULATION</div>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+          <div>
+            <div class="aud-name" id="audience-name"></div>
+            <div id="segments-summary" style="margin-top:0.4rem;"></div>
+          </div>
+          <span id="agent-count" class="aud-count"></span>
+        </div>
       </div>
     </section>
 
-    <!-- Step 5: report -->
-    <section id="report-section" class="hidden space-y-4">
-      <div class="bg-white rounded-lg border border-slate-200 p-5">
-        <h2 class="text-lg font-semibold mb-1">Report</h2>
-        <div id="report-description" class="text-sm text-slate-600 italic mb-4"></div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          <div class="bg-slate-50 p-3 rounded">
-            <div class="text-xs text-slate-500 uppercase">Avg like</div>
-            <div id="m-like" class="text-2xl font-semibold"></div>
-            <div class="text-[11px] text-slate-400">out of 10</div>
+    <!-- ════════════════ AGENT GRID ════════════════ -->
+    <section class="content-section" style="padding:0;">
+      <div id="agent-grid"></div>
+    </section>
+
+    <!-- ════════════════ VIDEO SIMULATION ════════════════ -->
+    <section id="video-section" class="content-section hidden-section">
+      <div class="inner reveal">
+        <div class="section-label"><span class="num">03 ·</span> SIMULATION</div>
+        <h2 class="section-title">One video. <em>100 reactions.</em></h2>
+        <p class="section-desc">Upload a short clip. The audience above will react to it — watch-through, like intent, share intent, and free-text response.</p>
+
+        <div class="two-col" style="margin-bottom:1.1rem;">
+          <div>
+            <label class="f-label" for="video-title">Title / caption</label>
+            <input id="video-title" type="text" placeholder="5 cues that fixed my squat depth" />
           </div>
-          <div class="bg-slate-50 p-3 rounded">
-            <div class="text-xs text-slate-500 uppercase">Engage prob.</div>
-            <div id="m-engage" class="text-2xl font-semibold"></div>
-          </div>
-          <div class="bg-slate-50 p-3 rounded">
-            <div class="text-xs text-slate-500 uppercase">Share prob.</div>
-            <div id="m-share" class="text-2xl font-semibold"></div>
-          </div>
-          <div class="bg-slate-50 p-3 rounded">
-            <div class="text-xs text-slate-500 uppercase">Sentiment</div>
-            <div id="m-sentiment" class="text-sm font-semibold flex items-center gap-2 mt-1"></div>
+          <div>
+            <label class="f-label" for="video-file">Video file</label>
+            <input id="video-file" type="file" accept="video/*" />
           </div>
         </div>
 
-        <h3 class="text-sm font-semibold text-slate-700 mb-2">Per-segment breakdown</h3>
-        <div id="report-by-segment" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+        <div class="controls-row" style="margin-top:0;">
+          <button id="btn-evaluate-video" class="btn-sim">Run simulation</button>
+          <span id="video-status" class="status-text"></span>
+        </div>
+      </div>
+    </section>
 
-        <h3 class="text-sm font-semibold text-slate-700 mt-5 mb-2">Themes</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div class="bg-emerald-50 border border-emerald-200 rounded p-3">
-            <div class="text-xs uppercase text-emerald-700 mb-1">What landed</div>
-            <ul id="themes-positive" class="list-disc list-inside text-sm space-y-0.5"></ul>
+    <!-- ════════════════ REPORT ════════════════ -->
+    <section id="report-section" class="content-section hidden-section">
+      <div class="inner reveal">
+        <div class="section-label"><span class="num">04 ·</span> FORECAST</div>
+        <h2 class="section-title">Predicted <em>performance.</em></h2>
+
+        <div id="report-description" class="report-desc-block"></div>
+
+        <!-- Top metrics -->
+        <div class="four-col">
+          <div class="metric-block">
+            <div class="metric-key">Avg like</div>
+            <div class="metric-val" id="m-like">—</div>
+            <div class="metric-sub">/ 10</div>
           </div>
-          <div class="bg-rose-50 border border-rose-200 rounded p-3">
-            <div class="text-xs uppercase text-rose-700 mb-1">What pushed back</div>
-            <ul id="themes-negative" class="list-disc list-inside text-sm space-y-0.5"></ul>
+          <div class="metric-block">
+            <div class="metric-key">Engage prob.</div>
+            <div class="metric-val" id="m-engage">—</div>
+          </div>
+          <div class="metric-block">
+            <div class="metric-key">Share prob.</div>
+            <div class="metric-val" id="m-share">—</div>
+          </div>
+          <div class="metric-block">
+            <div class="metric-key">Sentiment</div>
+            <div id="m-sentiment" style="margin-top:0.3rem;"></div>
           </div>
         </div>
 
-        <h3 class="text-sm font-semibold text-slate-700 mt-5 mb-2">Representative comments</h3>
-        <ul id="report-quotes" class="space-y-1.5"></ul>
+        <!-- Segments -->
+        <div class="section-label" style="margin-bottom:0.875rem;"><span class="num">·</span> SEGMENT BREAKDOWN</div>
+        <div class="two-col" id="report-by-segment" style="margin-bottom:2rem;"></div>
+
+        <!-- Themes -->
+        <div class="section-label" style="margin-bottom:0.875rem;"><span class="num">·</span> THEMES</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:2rem;">
+          <div class="theme-card theme-pos">
+            <div class="theme-label">What landed</div>
+            <div id="themes-positive"></div>
+          </div>
+          <div class="theme-card theme-neg">
+            <div class="theme-label">What pushed back</div>
+            <div id="themes-negative"></div>
+          </div>
+        </div>
+
+        <!-- Quotes -->
+        <div class="section-label" style="margin-bottom:0.5rem;"><span class="num">·</span> REPRESENTATIVE COMMENTS</div>
+        <ul id="report-quotes" style="list-style:none; padding:0;"></ul>
       </div>
     </section>
-  </div>
+
+    <!-- Footer -->
+    <footer id="footer">
+      <span class="footer-brand">PRDX<span>  //  HACKATHON BUILD</span></span>
+      <span class="footer-tag">predict before you post.</span>
+    </footer>
+
+  </div><!-- /#app -->
 
 <script>
+/* ─── Three.js wave — navy dots matching deck palette ─── */
+(function () {
+  const container = document.getElementById('wave-canvas');
+  const SEP = 115, AMX = 52, AMY = 62;
+
+  const scene  = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 1, 10000);
+  camera.position.set(0, 300, 1060);
+
+  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setClearColor(0x000000, 0);
+  container.appendChild(renderer.domElement);
+
+  Object.assign(renderer.domElement.style, {
+    position: 'fixed', inset: 0, width: '100%', height: '100%'
+  });
+
+  const pos = [], col = [];
+  for (let ix = 0; ix < AMX; ix++) {
+    for (let iy = 0; iy < AMY; iy++) {
+      pos.push(ix * SEP - (AMX * SEP) / 2, 0, iy * SEP - (AMY * SEP) / 2);
+      // Mix between lime-tinted dots and blue-tinted dots to echo the deck palette
+      const t = (ix / AMX + iy / AMY) / 2;
+      col.push(0.18 + t * 0.06, 0.22 + t * 0.08, 0.32 + t * 0.04);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color',    new THREE.Float32BufferAttribute(col, 3));
+  const mat    = new THREE.PointsMaterial({ size: 5, vertexColors: true, transparent: true, opacity: 0.7, sizeAttenuation: true });
+  const points = new THREE.Points(geo, mat);
+  scene.add(points);
+
+  let t = 0;
+  function tick() {
+    requestAnimationFrame(tick);
+    const arr = geo.attributes.position.array;
+    let i = 0;
+    for (let ix = 0; ix < AMX; ix++) {
+      for (let iy = 0; iy < AMY; iy++) {
+        arr[i * 3 + 1] = Math.sin((ix + t) * 0.26) * 42 + Math.sin((iy + t) * 0.42) * 42;
+        i++;
+      }
+    }
+    geo.attributes.position.needsUpdate = true;
+    renderer.render(scene, camera);
+    t += 0.022;
+  }
+  tick();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+})();
+
+/* ─── Scroll reveal ─── */
+const revealObs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.08, rootMargin: '-30px' });
+document.querySelectorAll('.reveal').forEach(el => revealObs.observe(el));
+
+/* ─────────────── App logic (original, preserved) ─────────────── */
 const $ = (id) => document.getElementById(id);
 const STATUS = $("status");
 
@@ -152,10 +755,10 @@ let SEG_TO_COLOR_IDX = {};
 
 function setStatus(msg, kind = "info") {
   STATUS.textContent = msg || "";
-  STATUS.className = "text-sm " + (
-    kind === "error" ? "text-red-600" :
-    kind === "ok" ? "text-green-700" :
-    "text-slate-500"
+  STATUS.className = "status-text " + (
+    kind === "error" ? "error" :
+    kind === "ok"    ? "ok"    :
+    ""
   );
 }
 
@@ -168,62 +771,59 @@ function colorClassFor(segmentId) {
   if (!(segmentId in SEG_TO_COLOR_IDX)) {
     SEG_TO_COLOR_IDX[segmentId] = Object.keys(SEG_TO_COLOR_IDX).length % 8;
   }
-  return `seg-color-${SEG_TO_COLOR_IDX[segmentId]}`;
+  return `ac-${SEG_TO_COLOR_IDX[segmentId]}`;
 }
 
 function renderAgentCard(agent) {
-  const color = colorClassFor(agent.segment_id);
+  const acc = colorClassFor(agent.segment_id);
   const subs = (agent.interest_graph || []).map(s =>
-    `<span class="inline-block bg-white/70 px-2 py-0.5 rounded text-xs font-mono mr-1 mb-1">${s}</span>`
+    `<span class="sub-tag">${s}</span>`
   ).join("");
   const tones = (agent.tone_examples || []).map(t =>
-    `<li class="italic text-sm text-slate-700">"${t}"</li>`
+    `<div class="tone-line">"${t}"</div>`
   ).join("");
 
   return `
-    <details class="border-2 ${color} rounded-lg p-4 transition hover:shadow-md group">
-      <summary class="cursor-pointer list-none flex items-center justify-between gap-3">
-        <div class="min-w-0">
-          <div class="font-semibold truncate">${agent.display_name}</div>
-          <div class="text-xs text-slate-600">${agent.age} · ${agent.country} · ${agent.occupation}</div>
-          <div class="text-[11px] mt-1 font-mono text-slate-500">${agent.segment_id}</div>
+    <details class="agent-card ${acc}">
+      <summary>
+        <div class="card-row">
+          <div>
+            <div class="card-name">${agent.display_name}</div>
+            <div class="card-meta">${agent.age} · ${agent.country} · ${agent.occupation}</div>
+            <div class="card-seg">${agent.segment_id}</div>
+          </div>
+          <span class="card-chevron">▾</span>
         </div>
-        <span class="text-slate-500 text-xs group-open:hidden">&#x25BC;</span>
-        <span class="text-slate-500 text-xs hidden group-open:inline">&#x25B2;</span>
       </summary>
-      <div class="mt-3 space-y-3 text-sm">
-        <p class="text-slate-700">${agent.bio}</p>
-        <div>
-          <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Subreddits they read</div>
-          <div>${subs || '<span class="text-xs text-slate-400">(none)</span>'}</div>
-        </div>
-        <div>
-          <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">How they talk</div>
-          <ul class="list-disc list-inside space-y-0.5">${tones}</ul>
-        </div>
-        <div class="text-xs text-slate-400">
-          posting ratio ${agent.posting_ratio.toFixed(2)} · id ${agent.id.slice(0, 8)}
-        </div>
+      <div class="card-body">
+        <p class="card-bio">${agent.bio}</p>
+        <div class="card-section-label">subreddits</div>
+        <div>${subs || '<span style="font-size:0.68rem;color:var(--text-3)">none</span>'}</div>
+        <div class="card-section-label">tone</div>
+        <div>${tones}</div>
+        <div class="card-footer">ratio ${agent.posting_ratio.toFixed(2)} · ${agent.id.slice(0,8)}</div>
       </div>
     </details>
   `;
 }
 
 function renderAgents(agents) {
-  // group by segment so cards of the same kind cluster together visually
   const sorted = [...agents].sort((a, b) => a.segment_id.localeCompare(b.segment_id));
   $("agent-grid").innerHTML = sorted.map(renderAgentCard).join("");
 }
 
 function renderSummary(spec, count) {
-  $("audience-summary").classList.remove("hidden");
+  $("audience-summary").classList.remove("hidden-section");
   $("audience-name").textContent = spec.name;
   $("agent-count").textContent = `${count} agents`;
-  const parts = (spec.segments || []).map(s =>
-    `<span class="font-mono">${s.id}</span> (${Math.round(s.weight * 100)}%)`
-  );
-  $("segments-summary").innerHTML = "Segments: " + parts.join(" · ");
-  $("btn-browse").classList.remove("hidden");
+  const pills = (spec.segments || []).map(s =>
+    `<span class="seg-pill">${s.id} ${Math.round(s.weight * 100)}%</span>`
+  ).join("");
+  $("segments-summary").innerHTML = pills;
+  $("btn-browse").style.display = "inline-block";
+  setTimeout(() => {
+    $("audience-summary").querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+  }, 50);
 }
 
 async function fetchJSON(url, opts = {}) {
@@ -266,7 +866,10 @@ async function generate() {
     });
 
     renderAgents(generated.personas);
-    $("video-section").classList.remove("hidden");
+    $("video-section").classList.remove("hidden-section");
+    setTimeout(() => {
+      $("video-section").querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+    }, 50);
     setStatus(`Generated ${generated.count} agents.`, "ok");
   } catch (e) {
     setStatus(e.message, "error");
@@ -293,8 +896,11 @@ async function loadExistingPersonas() {
     const personas = await fetchJSON("/personas");
     if (personas.length > 0) {
       renderAgents(personas);
-      $("btn-browse").classList.remove("hidden");
-      $("video-section").classList.remove("hidden");
+      $("btn-browse").style.display = "inline-block";
+      $("video-section").classList.remove("hidden-section");
+      setTimeout(() => {
+        $("video-section").querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+      }, 50);
       setStatus(`Loaded ${personas.length} existing agents from previous run.`);
     }
   } catch {
@@ -307,63 +913,72 @@ async function loadExistingPersonas() {
 const VIDEO_STATUS = $("video-status");
 function setVideoStatus(msg, kind = "info") {
   VIDEO_STATUS.textContent = msg || "";
-  VIDEO_STATUS.className = "text-sm " + (
-    kind === "error" ? "text-red-600" :
-    kind === "ok" ? "text-green-700" :
-    "text-slate-500"
+  VIDEO_STATUS.className = "status-text " + (
+    kind === "error" ? "error" :
+    kind === "ok"    ? "ok"    :
+    ""
   );
 }
 
 function fmtPct(p) { return Math.round((p || 0) * 100) + "%"; }
-function fmtScore(s) { return (s || 0).toFixed(2); }
+function fmtScore(s) { return (s || 0).toFixed(1); }
 
 function renderSentimentBar(dist) {
-  const segments = [
-    ["positive", "bg-emerald-500"],
-    ["neutral",  "bg-slate-400"],
-    ["negative", "bg-rose-500"],
-  ];
-  const inner = segments.map(([k, color]) => {
-    const pct = (dist[k] || 0) * 100;
-    return `<span class="inline-block ${color} text-white text-[10px] text-center" style="width:${pct}%">${pct >= 12 ? Math.round(pct)+"%" : ""}</span>`;
-  }).join("");
-  return `<div class="flex h-4 w-full rounded overflow-hidden border border-slate-200">${inner}</div>`;
+  const pos = (dist.positive || 0) * 100;
+  const neu = (dist.neutral  || 0) * 100;
+  const neg = (dist.negative || 0) * 100;
+  return `
+    <div class="sent-bar">
+      <div class="sp" style="width:${pos}%"></div>
+      <div class="sn" style="width:${neu}%"></div>
+      <div class="se" style="width:${neg}%"></div>
+    </div>
+    <div class="sent-legend">
+      <span class="l-p">${Math.round(pos)}% pos</span>
+      <span>${Math.round(neu)}% neu</span>
+      <span class="l-e">${Math.round(neg)}% neg</span>
+    </div>
+  `;
 }
 
 function renderReport(payload) {
   const r = payload.report;
-  $("report-section").classList.remove("hidden");
-  $("report-description").textContent = `Video described as: "${payload.description.replace(/\s+/g," ").slice(0,300)}${payload.description.length > 300 ? "…" : ""}"`;
+  $("report-section").classList.remove("hidden-section");
+  setTimeout(() => {
+    $("report-section").querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+  }, 50);
+
+  $("report-description").textContent = `"${payload.description.replace(/\s+/g," ").slice(0,300)}${payload.description.length > 300 ? "…" : ""}"`;
 
   $("m-like").textContent   = fmtScore(r.overall.like_score);
   $("m-engage").textContent = fmtPct(r.overall.engage_probability);
   $("m-share").textContent  = fmtPct(r.overall.share_probability);
   $("m-sentiment").innerHTML = renderSentimentBar(r.overall.sentiment_dist || {});
 
-  // per segment
   $("report-by-segment").innerHTML = Object.entries(r.by_segment).map(([seg, m]) => `
-    <div class="border border-slate-200 rounded p-3">
-      <div class="font-mono text-xs text-slate-500 mb-1">${seg} (${m.n} agents)</div>
-      <div class="flex gap-4 text-sm">
-        <div><span class="text-slate-500">like</span> <strong>${fmtScore(m.like_score)}</strong></div>
-        <div><span class="text-slate-500">engage</span> <strong>${fmtPct(m.engage_probability)}</strong></div>
-        <div><span class="text-slate-500">share</span> <strong>${fmtPct(m.share_probability)}</strong></div>
+    <div class="seg-report-card">
+      <div class="seg-rep-label">${seg} · ${m.n} agents</div>
+      <div class="seg-stats" style="margin-bottom:0.5rem;">
+        <div class="seg-stat"><span style="color:var(--text-3)">like</span> <strong>${fmtScore(m.like_score)}</strong></div>
+        <div class="seg-stat"><span style="color:var(--text-3)">engage</span> <strong>${fmtPct(m.engage_probability)}</strong></div>
+        <div class="seg-stat"><span style="color:var(--text-3)">share</span> <strong>${fmtPct(m.share_probability)}</strong></div>
       </div>
-      <div class="mt-2">${renderSentimentBar(m.sentiment_dist || {})}</div>
+      ${renderSentimentBar(m.sentiment_dist || {})}
     </div>
   `).join("");
 
-  // themes
-  $("themes-positive").innerHTML = (r.top_themes_positive || []).map(t => `<li>${t}</li>`).join("")
-    || `<li class="text-slate-400 italic">none</li>`;
-  $("themes-negative").innerHTML = (r.top_themes_negative || []).map(t => `<li>${t}</li>`).join("")
-    || `<li class="text-slate-400 italic">none</li>`;
+  $("themes-positive").innerHTML = (r.top_themes_positive || []).map(t =>
+    `<div class="theme-row">${t}</div>`
+  ).join("") || `<div class="theme-row" style="color:var(--text-3);font-style:italic;">none</div>`;
 
-  // representative quotes
+  $("themes-negative").innerHTML = (r.top_themes_negative || []).map(t =>
+    `<div class="theme-row">${t}</div>`
+  ).join("") || `<div class="theme-row" style="color:var(--text-3);font-style:italic;">none</div>`;
+
   $("report-quotes").innerHTML = (r.representative_comments || []).map(c => `
-    <li class="text-sm">
-      <span class="font-mono text-xs text-slate-500 mr-2">[${c.segment_id}]</span>
-      <span class="italic text-slate-700">"${c.comment}"</span>
+    <li class="quote-row">
+      <span class="quote-seg">[${c.segment_id}]</span>
+      <span style="font-style:italic;">"${c.comment}"</span>
     </li>
   `).join("");
 
@@ -377,7 +992,7 @@ async function evaluateVideo() {
   if (!title) { setVideoStatus("Add a title or caption.", "error"); return; }
 
   $("btn-evaluate-video").disabled = true;
-  setVideoStatus("Uploading and describing video frames... (this can take 20-60 seconds)");
+  setVideoStatus("Uploading and describing video frames… (20–60 s)");
 
   const fd = new FormData();
   fd.append("title", title);
