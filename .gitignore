@@ -41,11 +41,15 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# python (agent/)
-__pycache__/
-*.py[cod]
+# Playwright saved auth state (after `npm run worker:login`)
+worker/.auth/
+playwright-report/
+test-results/
 .venv/
 venv/
 
 # claude
 CLAUDE.md.bak
+
+# local secrets dump — do NOT commit
+DB.md

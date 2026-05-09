@@ -1,63 +1,69 @@
 # Social Media Agent — Hackathon Build Plan
 
 ## Concept
-A social media agent that manages your X (Twitter) presence — drafting posts,
-scheduling them, and triaging mentions/DMs with AI-drafted replies. You approve
-each action either from a **web dashboard** or by **replying Y/N to a text
-message**. The agent runs 24/7 in Ara's cloud, even when your laptop is off.
+A standalone social media agent that manages your X (Twitter) presence —
+drafting posts, scheduling them, and triaging mentions/DMs with AI-drafted
+replies. Approve from a **web dashboard** or by **replying Y/N to a text**.
+Posting uses **browser automation** (Playwright), not the X API, so there's
+no developer review, no token rotation, and no per-month tweet caps.
+
+**Inspired by Ara's capability set** (persistent agent, phone access, browser
+automation, always-on) but built standalone — no Ara API dependency.
 
 ---
 
-## Architecture: Hybrid (Ara + Next.js + Supabase)
+## Architecture
 
 ```
-┌─────────────────────────┐       ┌─────────────────────────┐
-│  Ara (cloud)            │       │  Next.js (local/hosted) │
-│  agent.py               │◄─────►│  Dashboard / Inbox /    │
-│  - cron every 15 min    │       │  Schedule / Settings    │
-│  - draft / classify     │       │                         │
-│  - post / reply on X    │       │                         │
-│  - SMS approval prompts │       │                         │
-└────────────┬────────────┘       └────────────┬────────────┘
-             │                                 │
-             └───────────────┬─────────────────┘
-                             ▼
-                ┌──────────────────────────┐
-                │  Supabase (Postgres)     │
-                │  drafts / mentions /     │
-                │  scheduled / sent_log /  │
-                │  config / tokens         │
-                └──────────────────────────┘
+┌─────────────────────────────────────┐
+│ Next.js 16 dashboard                │
+│  • /draft   — Anthropic-drafted     │
+│  • /approve — pending posts queue   │
+│  • /inbox   — mentions + replies    │
+│  • /stats   — sent log + metrics    │
+│  • /settings— style profile, schedule│
+└──────────────┬──────────────────────┘
+               │ R/W
+               ▼
+┌─────────────────────────────────────┐
+│ Supabase (Postgres)                 │
+│  drafts / scheduled / sent_log /    │
+│  mentions / replies / config        │
+└──────────────┬──────────────────────┘
+               │ poll
+               ▼
+┌─────────────────────────────────────┐
+│ Worker (Node + Playwright)          │
+│  • node-cron tick every minute      │
+│  • Approved scheduled → post via    │
+│    long-lived Chrome session        │
+│  • Approved replies → reply via     │
+│    same session                     │
+│  • Poll mentions every N min        │
+│  • Optional: Twilio SMS approval    │
+└─────────────────────────────────────┘
 ```
 
-**Three layers, three responsibilities:**
-- **Ara** — the agent runtime. Hosts `agent.py`, runs it on cron, calls Claude,
-  invokes `@ara.tool` Python functions for X API + DB writes, sends SMS via
-  the `linq_send_message` connector for approval prompts.
-- **Supabase** — shared state. Both Ara and the Next.js app read/write here.
-  Single source of truth for drafts, queue, mentions, sent log, config.
-- **Next.js** — the dashboard. Reads from Supabase to show queue/inbox; writes
-  approval flags back. Built on the existing scaffold (Next.js 16 + AI SDK 6
-  + shadcn).
-
-**Approval paths (either works):**
-1. Web → click ✓ on a pending draft → DB flag flips → Ara posts on next tick.
-2. SMS → Ara texts draft → reply Y → Ara flips flag itself → posts.
+**Three responsibilities, three pieces:**
+- **Next.js** — dashboard UI + API routes that read/write Supabase + call Anthropic for drafting.
+- **Supabase** — single source of truth for all state. Both UI and worker hit it.
+- **Worker** — keeps a logged-in Chrome session, polls Supabase, executes approved actions.
 
 ---
 
-## Platform Decision: X (Twitter) Only
+## Why browser automation instead of X API
 
-**Why not Instagram:**
-- Graph API gates DM access behind business account + Meta app review (weeks).
-- Posting via API requires verified business/creator account.
-- Scraping (instagrapi etc.) violates ToS; accounts get banned. Bad UX for an
-  installable end-user product.
+| Concern | X API | Playwright (this approach) |
+|---|---|---|
+| Dev approval | Required, can take days | None |
+| Free-tier post cap | 500/month | Unlimited (your account's normal limits) |
+| OAuth complexity | OAuth 2.0 PKCE flow | One-time login in headed Chrome, session persists |
+| DM access | Basic tier ($100/mo) | Free, just navigate to DM page |
+| Maintenance | Token refresh, rate limits | Selectors break occasionally; mitigate with stable test IDs |
 
-**Why X:**
-- v2 API works on free/basic tier immediately.
-- Reads mentions, posts, replies. (DMs require basic tier.)
-- OAuth 2.0 PKCE is straightforward.
+Tradeoffs accepted: Playwright is more fragile (X can change DOM), but for a
+hackathon the friction-free auth + unlimited posting wins. Selectors live in
+one file (`worker/x-selectors.ts`) so updates are localized.
 
 ---
 
@@ -65,12 +71,12 @@ message**. The agent runs 24/7 in Ara's cloud, even when your laptop is off.
 
 | Layer | Tool | Why |
 |---|---|---|
-| Agent runtime | **Ara SDK** (Python) | Cloud-hosted, built-in cron, tools, SMS connector |
-| Shared DB | **Supabase** (Postgres) | REST API, auth, free tier, mature Python + JS SDKs |
-| Dashboard | **Next.js 16** (existing scaffold) | Already wired with AI SDK 6, shadcn, Tailwind v4 |
-| X client | `tweepy` (Python) inside Ara tools | Mature, OAuth 2.0 support |
-| Approval UX | Web (Next.js) **or** SMS (Ara `linq_send_message`) | Both write to the same DB flag |
-| Secrets | Ara secrets for the agent; `.env.local` for Next.js | Never committed |
+| Dashboard | **Next.js 16** + AI SDK 6 + shadcn (existing scaffold) | Already wired |
+| AI | **Anthropic SDK** (`@anthropic-ai/sdk`), model `claude-sonnet-4-6` | Direct API; AI Gateway also OK |
+| State | **Supabase** (Postgres) | REST API + auth + free tier; provisioned |
+| Browser | **Playwright** (Node) | Drives real Chrome with persistent session |
+| Worker | **Node** + `node-cron` | Same runtime as Next.js, easy deploy |
+| SMS (optional) | **Twilio** | Inbound webhook → Supabase flag flip |
 
 ---
 
@@ -78,159 +84,135 @@ message**. The agent runs 24/7 in Ara's cloud, even when your laptop is off.
 
 ```
 ara-hackathon/
-├── agent/                       # Python — deployed to Ara cloud
-│   ├── agent.py                 # ara.Job + system instructions
-│   ├── tools/
-│   │   ├── x_client.py          # @ara.tool: post_tweet, get_mentions, reply_to
-│   │   ├── state.py             # @ara.tool: save_draft, list_pending, mark_*
-│   │   └── approval.py          # @ara.tool: send_approval_sms
-│   ├── prompts.py               # system instructions + style profile injection
-│   ├── requirements.txt         # ara-sdk, tweepy, supabase
-│   └── .env.example             # X creds, Supabase URL/key, phone number
+├── app/                       # Next.js dashboard
+│   ├── page.tsx               # dashboard home
+│   ├── draft/page.tsx         # generate variants → save
+│   ├── approve/page.tsx       # pending posts review
+│   ├── inbox/page.tsx         # mentions with AI replies
+│   ├── stats/page.tsx         # sent log + metrics
+│   ├── settings/page.tsx      # style profile, schedule
+│   └── api/
+│       ├── draft/route.ts     # Anthropic draft generation
+│       ├── reply/route.ts     # Anthropic reply generation
+│       ├── classify/route.ts  # spam / no_action / reply_needed
+│       └── twilio/route.ts    # SMS webhook → flip approval flag
 │
-├── app/                         # Next.js — dashboard
-│   ├── page.tsx                 # dashboard home
-│   ├── draft/page.tsx           # generate variants → queue
-│   ├── inbox/page.tsx           # pending mentions/DMs with replies
-│   ├── schedule/page.tsx        # queue table
-│   ├── settings/page.tsx        # style profile, post times, X auth
-│   └── api/                     # thin Next.js routes wrapping Supabase queries
+├── worker/                    # Long-lived Node process
+│   ├── index.ts               # cron loop, registers jobs
+│   ├── browser.ts             # Playwright session manager
+│   ├── x-selectors.ts         # X DOM selectors (single source)
+│   ├── jobs/
+│   │   ├── post-scheduled.ts  # fire approved scheduled posts
+│   │   ├── post-replies.ts    # fire approved replies
+│   │   └── poll-mentions.ts   # scrape /notifications/mentions
+│   └── login.ts               # one-time headed login flow
 │
-├── lib/                         # shared TS
-│   ├── supabase.ts              # Supabase client
-│   └── types.ts                 # generated DB types (zod or supabase-codegen)
+├── lib/
+│   ├── supabase.ts            # browser/server client
+│   ├── supabase-server.ts     # service-role client (server only)
+│   ├── anthropic.ts           # Anthropic SDK client + prompts
+│   ├── types.ts               # mirrors db/schema.sql
+│   └── prompts.ts             # draft/reply/classify templates
 │
 ├── db/
-│   └── schema.sql               # Supabase tables — single source of truth
+│   └── schema.sql             # Supabase schema (already written)
 │
-└── components/                  # shadcn UI primitives + custom
+├── components/                # shadcn primitives + custom
+└── package.json
 ```
 
 ---
 
-## Supabase Schema (locked first hour)
+## Supabase Schema
 
-```sql
-create table drafts (
-  id uuid primary key default gen_random_uuid(),
-  topic text,
-  content text not null,
-  variant_index int,
-  created_at timestamptz default now()
-);
+(Already in `db/schema.sql` — unchanged from H1.) Six tables:
+`drafts`, `scheduled`, `sent_log`, `mentions`, `replies`, `config`.
 
-create table scheduled (
-  id uuid primary key default gen_random_uuid(),
-  content text not null,
-  scheduled_for timestamptz not null,
-  status text not null default 'pending',  -- pending | approved | sent | failed
-  draft_id uuid references drafts(id),
-  created_at timestamptz default now()
-);
-
-create table sent_log (
-  id uuid primary key default gen_random_uuid(),
-  x_tweet_id text,
-  content text not null,
-  sent_at timestamptz default now()
-);
-
-create table mentions (
-  id uuid primary key default gen_random_uuid(),
-  x_id text unique not null,
-  author text,
-  text text,
-  fetched_at timestamptz default now(),
-  status text not null default 'new'        -- new | drafted | approved | replied | skipped | spam
-);
-
-create table replies (
-  id uuid primary key default gen_random_uuid(),
-  mention_id uuid references mentions(id),
-  draft_content text not null,
-  status text not null default 'pending',   -- pending | approved | sent
-  created_at timestamptz default now()
-);
-
-create table config (
-  key text primary key,
-  value text
-);
--- seeded: style_profile, post_schedule (e.g. "09:00,13:00,18:00"), phone_number
-```
-
-**Status state machines:**
-- `scheduled.status`: pending → approved → sent (or → failed)
-- `mentions.status`: new → drafted → approved → replied (or → skipped/spam)
-- `replies.status`: pending → approved → sent
+State machines:
+- `scheduled.status`: `pending → approved → sent` (or `→ failed`)
+- `mentions.status`: `new → drafted → approved → replied` (or `→ skipped/spam`)
+- `replies.status`: `pending → approved → sent`
 
 ---
 
-## Build Order (Hackathon, 6 hours, 4 people in parallel)
+## Login flow (one-time, headed)
 
-| Hour | P1 (Platform) | P2 (X tools) | P3 (Agent brain) | P4 (Dashboard) |
-|------|---------------|--------------|------------------|----------------|
-| 1    | Supabase project, schema, env wiring, agent skeleton boots | tweepy auth setup, `post_tweet` tool works | system instructions skeleton, hello-world Job | gut placeholder, dashboard route |
-| 2    | `ara deploy` works end-to-end, secrets configured | `get_mentions`, `reply_to`, `send_dm` tools | drafting prompt: topic → 3 variants | /draft page UI |
-| 3    | DB types codegen, shared `tools/state.py` | classify spam vs reply tool | full agent.py: tools registered, cron set | /inbox page UI |
-| 4    | `linq_send_message` SMS approval flow | (integrating with state) | scheduled-post flow end-to-end | /schedule page |
-| 5    | Approval flag round-trip tested | (polish) | mentions-poll flow end-to-end | /settings page |
-| 6    | README, install steps, demo script | (polish) | (polish) | landing page polish |
+```bash
+npm run worker:login
+```
+Opens a real Chrome window. User logs into x.com normally. Playwright saves
+the auth state to `worker/.auth/x.json` (gitignored). All subsequent posting
+uses that saved session — no credentials in env vars.
 
 ---
 
-## What Makes This Stand Out
+## Build Order (6 hours, 4 people)
 
-- **Always-on without a server.** Ara handles 24/7 execution; you don't run a worker on your laptop.
-- **Two-channel approval.** Approve from a web dashboard or by texting Y. Whichever is closer when you're notified.
-- **Style-aware.** Every draft personalized via a style profile injected into the system prompt.
-- **Approval-first.** Nothing posts to X without you clicking ✓ or replying Y.
-- **Demo-friendly.** Live SMS approval on stage > clicking buttons in a browser.
+| Hour | P1 (Platform) | P2 (Browser/Posting) | P3 (AI/Drafting) | P4 (UI/Dashboard) |
+|------|---------------|----------------------|------------------|-------------------|
+| 1 | ✅ Schema, env, supabase clients, types | Playwright install + login flow | Anthropic SDK setup, draft prompt working | Gut placeholder, dashboard route |
+| 2 | Worker harness + cron registry | `post_tweet` via Playwright works end-to-end | `/api/draft` returns 3 variants | `/draft` page UI |
+| 3 | Twilio SMS skeleton | `get_mentions` scraping works | `/api/classify`, `/api/reply` | `/approve` page |
+| 4 | SMS round-trip | `reply_to` works | (polish prompts) | `/inbox` page |
+| 5 | (integration testing) | (polish, error handling) | (polish) | `/stats`, `/settings` |
+| 6 | README, deploy, demo script | (polish) | (polish) | Landing polish |
 
 ---
 
-## .env templates
+## Connection to Ara (storytelling, not technical)
 
-**`agent/.env.example`** (Python — Ara secrets):
-```
-X_API_KEY=
-X_API_SECRET=
-X_ACCESS_TOKEN=
-X_ACCESS_SECRET=
-X_BEARER_TOKEN=
-SUPABASE_URL=
-SUPABASE_SERVICE_KEY=          # service-role key for full DB access from Ara
-USER_PHONE_NUMBER=             # for SMS approval
-```
+Ara markets: persistent personal AI computer, phone access, browser auto,
+24/7 sandbox. We mirror those capabilities for the social-media use case
+without depending on Ara's API:
 
-**`.env.local`** (Next.js):
-```
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-AI_GATEWAY_API_KEY=            # only if dashboard does its own AI calls
-AI_MODEL=anthropic/claude-sonnet-4.6
-```
+| Ara capability | Our analog |
+|---|---|
+| Persistent sandbox | Worker process + Supabase persistent state |
+| Phone access | Twilio SMS approval flow |
+| Browser tools | Playwright with saved session |
+| Always-on automation | Worker runs on a VM / Railway / Fly |
+| `@ara.tool` primitive | Discrete worker jobs (`post`, `reply`, `mentions`) |
+
+Pitch framing: *"We took the capabilities Ara shows off in their docs and built
+a focused, self-contained version for one job: managing your X presence."*
 
 ---
 
 ## Demo Flow (target ≤ 5 minutes)
 
-1. Open dashboard. Show empty queue.
-2. Click "New draft" → type *"thoughts on vibe coding"* → 3 variants stream in → pick one → schedule for +1 min.
-3. Show the row land in `scheduled` table (Supabase live view).
-4. Phone buzzes — SMS: *"Posting in 60s: '...'. Reply Y to confirm or N to cancel."*
-5. Reply Y. Tweet appears live on X.
-6. Trigger an inbox poll → SMS: *"@alice asked: '...'. Draft reply: '...'. Send?"*
-7. Open dashboard `/inbox`, edit the reply in the browser instead, click ✓ → reply posts.
+1. Open dashboard. Empty queue.
+2. `/draft` → type *"thoughts on vibe coding"* → 3 variants stream in (Anthropic) → pick → schedule for +60s.
+3. Show row in Supabase live (queue table updates).
+4. Phone buzzes — SMS: *"Posting in 30s: '...'. Reply Y to confirm or N to cancel."*
+5. Reply Y. Worker picks up flag, Playwright drives Chrome, tweet appears live on X.
+6. Open `/inbox`. New mention. AI-drafted reply already there. Edit one word, click ✓.
+7. Worker fires reply via Playwright. Live on X.
 
-Both channels demoed, end-to-end, in under 5 minutes.
+Two channels (web + SMS), end-to-end, in under 5 minutes.
+
+---
+
+## .env.local (Next.js)
+
+```
+ANTHROPIC_API_KEY=
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_KEY=                 # server only
+
+# Optional Twilio (SMS approval)
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
+USER_PHONE_NUMBER=
+```
 
 ---
 
 ## Non-Goals (cut to ship)
 
-- Bluesky / LinkedIn / Threads integration
-- Instagram (any path)
+- Bluesky / LinkedIn / Threads / Instagram
 - Image/video posting
-- Multi-account support
-- Analytics / metrics
+- Multi-account
+- Analytics beyond likes/replies/views as scraped
+- Self-hosted worker (deploy to Railway/Fly free tier instead)
