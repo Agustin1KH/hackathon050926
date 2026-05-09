@@ -6,7 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Sparkles, Calendar } from "lucide-react";
+import { Loader2, Sparkles, Calendar, FlaskConical } from "lucide-react";
+import type { EvaluationReport } from "@/lib/synthaudience-types";
 
 function defaultScheduleIso() {
   const d = new Date();
@@ -27,6 +28,9 @@ export function DraftStudio() {
   const [scheduling, setScheduling] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [report, setReport] = useState<EvaluationReport | null>(null);
+  const [testErr, setTestErr] = useState<string | null>(null);
 
   async function generate() {
     setErr(null);
@@ -74,6 +78,31 @@ export function DraftStudio() {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setScheduling(false);
+    }
+  }
+
+  async function testWithAudience() {
+    if (editedContent.length === 0) return;
+    setTesting(true);
+    setReport(null);
+    setTestErr(null);
+    try {
+      const res = await fetch("/api/synthaudience/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editedContent, title: topic || undefined }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "test failed");
+      if (json.run_id && json.by_segment) {
+        setReport(json as EvaluationReport);
+      } else {
+        throw new Error("synthaudience returned an unexpected payload");
+      }
+    } catch (e) {
+      setTestErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -188,6 +217,25 @@ export function DraftStudio() {
                   className="w-[14rem]"
                 />
                 <Button
+                  variant="outline"
+                  onClick={testWithAudience}
+                  disabled={testing || editedContent.length === 0}
+                  data-icon="inline-end"
+                  title="Run draft past synthetic-audience personas before scheduling"
+                >
+                  {testing ? (
+                    <>
+                      Testing
+                      <Loader2 className="animate-spin" />
+                    </>
+                  ) : (
+                    <>
+                      Test audience
+                      <FlaskConical />
+                    </>
+                  )}
+                </Button>
+                <Button
                   onClick={schedule}
                   disabled={scheduling || editedContent.length === 0}
                 >
@@ -204,8 +252,96 @@ export function DraftStudio() {
                 {done} It will fire when you approve it on /approve.
               </p>
             )}
+            {testErr && (
+              <p className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+                {testErr}
+              </p>
+            )}
+            {report && <SynthReport report={report} />}
           </CardContent>
         </Card>
+      )}
+    </div>
+  );
+}
+
+function SynthReport({ report }: { report: EvaluationReport }) {
+  const segments = Object.entries(report.by_segment ?? {});
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-border bg-background/40 p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Synthetic audience report
+        </span>
+        {report.overall?.avg_like_score != null && (
+          <Badge variant="outline" className="font-mono text-[10px]">
+            overall {report.overall.avg_like_score.toFixed(1)}/10
+          </Badge>
+        )}
+      </div>
+      {segments.length > 0 && (
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {segments.map(([id, seg]) => {
+            const score = seg.avg_like_score ?? 0;
+            const pct = Math.min(100, Math.round((score / 10) * 100));
+            return (
+              <div
+                key={id}
+                className="flex flex-col gap-1 rounded-md border border-border bg-card/40 p-2"
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-mono">{id}</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {score.toFixed(1)}/10
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-foreground/80"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {(report.top_themes_positive?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {report.top_themes_positive.slice(0, 4).map((t) => (
+            <Badge
+              key={`+${t}`}
+              variant="outline"
+              className="border-emerald-500/40 px-1.5 py-0 text-[10px] text-emerald-500"
+            >
+              + {t}
+            </Badge>
+          ))}
+          {report.top_themes_negative.slice(0, 4).map((t) => (
+            <Badge
+              key={`-${t}`}
+              variant="outline"
+              className="border-yellow-500/40 px-1.5 py-0 text-[10px] text-yellow-500"
+            >
+              − {t}
+            </Badge>
+          ))}
+        </div>
+      )}
+      {(report.representative_comments?.length ?? 0) > 0 && (
+        <div className="flex flex-col gap-1">
+          {report.representative_comments.slice(0, 3).map((c, i) => (
+            <p
+              key={i}
+              className="rounded-md border border-dashed border-border bg-card/40 p-2 text-xs italic text-muted-foreground"
+            >
+              {c.segment_id ? (
+                <span className="font-mono not-italic">{c.segment_id}</span>
+              ) : null}{" "}
+              “{c.comment}”
+            </p>
+          ))}
+        </div>
       )}
     </div>
   );
